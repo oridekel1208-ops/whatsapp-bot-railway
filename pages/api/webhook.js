@@ -24,36 +24,50 @@ async function getRawBody(req) {
 }
 
 export default async function handler(req, res) {
-  // GET -> verification (Meta sends hub.challenge)
+  // ✅ Handle Meta Webhook Verification (GET)
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
-    if (mode === 'subscribe' && token === process.env.META_VERIFY_TOKEN) {
-      console.log('Webhook verified');
+
+    // ✅ Allow either VERIFY_TOKEN or META_VERIFY_TOKEN (fallback)
+    const VERIFY_TOKEN =
+      process.env.VERIFY_TOKEN || process.env.META_VERIFY_TOKEN;
+
+    if (!VERIFY_TOKEN) {
+      console.error('⚠️ VERIFY_TOKEN is not set in environment variables!');
+      return res.status(500).send('Server misconfigured: VERIFY_TOKEN missing');
+    }
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('✅ Webhook verified successfully');
       return res.status(200).send(challenge);
     } else {
+      console.warn('❌ Webhook verification failed: token mismatch');
       return res.status(403).send('Verification failed');
     }
   }
 
+  // ✅ Only allow POST for actual message events
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).end('Method Not Allowed');
   }
 
-  // POST -> message events
+  // Handle POST (incoming messages)
   try {
     const raw = await getRawBody(req);
     const rawString = bufferToString(raw);
 
-    // Verify signature if we have app secret + signature header
     const signatureHeader = req.headers['x-hub-signature-256'];
     if (process.env.META_APP_SECRET && signatureHeader) {
       const hmac = crypto.createHmac('sha256', process.env.META_APP_SECRET);
       hmac.update(raw);
       const expected = 'sha256=' + hmac.digest('hex');
-      const valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
+      const valid = crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(signatureHeader)
+      );
       if (!valid) {
         console.warn('Invalid signature for incoming webhook');
         return res.status(401).send('Invalid signature');
@@ -62,18 +76,15 @@ export default async function handler(req, res) {
 
     const body = JSON.parse(rawString);
 
-    // Minimal handling: iterate entries and messages, save to DB, simple echo reply
     if (body.object === 'whatsapp_business_account' || body.entry) {
       for (const entry of body.entry || []) {
-        const changes = entry.changes || [];
-        for (const change of changes) {
+        for (const change of entry.changes || []) {
           const value = change.value || {};
-          const messages = value.messages || [];
           const metadata = value.metadata || {};
-          for (const m of messages) {
+          for (const m of value.messages || []) {
             const from = m.from;
             const text = m.text?.body || null;
-            // Save inbound
+
             await insertMessage({
               whatsapp_id: m.id,
               from_number: from,
@@ -83,8 +94,6 @@ export default async function handler(req, res) {
               provider_payload: m
             });
 
-            // SIMPLE BOT: Echo back (only within the 24-hour window - this is inbound reply)
-            // You can replace this with LLM/NLP logic, or enqueue into workers
             const reply = text ? `You said: ${text}` : "Thanks for your message.";
             try {
               const sendRes = await sendText(from, reply);
