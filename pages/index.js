@@ -13,13 +13,13 @@ export default function Home() {
         </p>
         <div style={{ marginTop: 24 }}>
           <button
-            onClick={() => router.push('/signup')}
+            onClick={() => router.push('/pages/signup')}
             style={{ marginRight: 8, padding: '8px 16px' }}
           >
             Sign Up
           </button>
           <button
-            onClick={() => router.push('/login')}
+            onClick={() => router.push('/pages/login')}
             style={{ padding: '8px 16px' }}
           >
             Login
