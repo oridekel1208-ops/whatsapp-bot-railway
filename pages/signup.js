@@ -17,9 +17,9 @@ export default function Signup() {
 
       let data;
       try {
-        data = await res.clone().json(); // safely attempt JSON
+        data = await res.clone().json();
       } catch {
-        data = { error: await res.clone().text() }; // fallback to plain text
+        data = { error: await res.clone().text() };
       }
 
       if (res.ok) {
