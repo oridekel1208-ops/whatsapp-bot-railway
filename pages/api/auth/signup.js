@@ -1,45 +1,32 @@
-import { useState } from 'react';
-import { useRouter } from 'next/router';
+import { createClient, getClientByPhoneNumberId } from '../../../lib/db.js';
 
-export default function Signup() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const router = useRouter();
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    const res = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+  const { phoneNumber } = req.body;
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'Phone number required' });
+  }
+
+  try {
+    const existing = await getClientByPhoneNumberId(phoneNumber);
+    if (existing) {
+      return res.status(400).json({ error: 'Phone number already registered' });
+    }
+
+    const verifyToken = Math.random().toString(36).substring(2, 10); // simple token
+    const client = await createClient({
+      name: 'User ' + phoneNumber,
+      phone_number_id: phoneNumber,
+      access_token: '', // leave blank for now
+      verify_token: verifyToken
     });
-    const data = await res.json();
-    if (res.ok) router.push('/dashboard');
-    else setError(data.error);
-  };
 
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', minHeight: '100vh', alignItems: 'center' }}>
-      <form onSubmit={handleSignup} style={{ padding: 32, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h1 style={{ marginBottom: 16 }}>Sign Up</h1>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 8 }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 8 }}
-        />
-        <button type="submit" style={{ width: '100%', padding: 8 }}>Sign Up</button>
-      </form>
-    </div>
-  );
+    return res.status(200).json({ client, message: 'Signup successful' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
+  }
 }
