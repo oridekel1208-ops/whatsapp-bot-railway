@@ -15,7 +15,8 @@ export default function Dashboard() {
       router.push('/login');
     } else {
       setClient(storedClient);
-      fetchMessages(storedClient.id);
+      fetchMessages(storedClient.phoneNumber);
+
     }
   }, []);
 
