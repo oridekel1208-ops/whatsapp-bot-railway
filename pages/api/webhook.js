@@ -6,7 +6,7 @@ const {
   markClientVerified
 } = require('../../lib/db.js');
 
-exports.config = { api: { bodyParser: false } };
+export const config = { runtime: 'nodejs', api: { bodyParser: false } };
 
 function bufferToString(buffer) {
   return buffer.toString('utf8');
@@ -21,7 +21,7 @@ async function getRawBody(req) {
   });
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // ✅ GET verification
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
@@ -68,7 +68,6 @@ module.exports = async function handler(req, res) {
           const value = change.value || {};
           const metadata = value.metadata || {};
           const phoneId = metadata.phone_number_id;
-
           if (!phoneId) continue;
 
           const client = getClientByPhoneNumberId(phoneId);
@@ -142,4 +141,4 @@ module.exports = async function handler(req, res) {
     console.error('🔥 Webhook Error:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
-};
+}
