@@ -17,14 +17,14 @@ export default function Login() {
 
       let data;
       try {
-        data = await res.clone().json(); // safely attempt JSON
+        data = await res.clone().json();
       } catch {
-        data = { error: await res.clone().text() }; // fallback to plain text
+        data = { error: await res.clone().text() };
       }
 
       if (res.ok) {
         setMessage('Login successful! Redirecting...');
-        setTimeout(() => router.push('/dashboard'), 1500); // redirect after login
+        setTimeout(() => router.push('/dashboard'), 1500);
       } else {
         setMessage(data.error || 'Login failed');
       }
