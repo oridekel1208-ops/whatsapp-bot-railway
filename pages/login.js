@@ -1,3 +1,4 @@
+// pages/login.js
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 
@@ -8,6 +9,7 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setMessage('Signing in...');
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -16,19 +18,13 @@ export default function Login() {
       });
 
       let data;
-      try {
-        data = await res.clone().json();
-      } catch {
-        data = { error: await res.clone().text() };
-      }
+      try { data = await res.clone().json(); } catch { data = { error: await res.clone().text() }; }
 
       if (res.ok) {
-        // ✅ Store client session
-        const clientData = { phoneNumber }; // or use data.user if available
-        localStorage.setItem('client', JSON.stringify(clientData));
-
-        setMessage('Login successful! Redirecting...');
-        setTimeout(() => router.push('/dashboard'), 500);
+        // store minimal session info
+        localStorage.setItem('client', JSON.stringify(data.client));
+        setMessage('Signed in — redirecting...');
+        setTimeout(() => router.push('/dashboard'), 600);
       } else {
         setMessage(data.error || 'Login failed');
       }
@@ -38,19 +34,24 @@ export default function Login() {
   };
 
   return (
-    <div style={{ padding: 32, fontFamily: 'sans-serif', maxWidth: 400, margin: '0 auto' }}>
+    <div style={{ padding: 32, maxWidth: 520, margin: '40px auto', fontFamily: 'Inter, Arial, sans-serif' }}>
       <h1>Login</h1>
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column' }}>
+      <p>Sign in with the WhatsApp phone number ID you registered.</p>
+
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input
-          placeholder="WhatsApp phone number (e.g., +1234567890)"
           value={phoneNumber}
-          onChange={e => setPhoneNumber(e.target.value)}
-          style={{ marginBottom: 8, padding: 8 }}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          placeholder="WhatsApp phone_number_id"
+          style={{ padding: 12, borderRadius: 8, border: '1px solid #e6eef8' }}
           required
         />
-        <button type="submit" style={{ padding: 8 }}>Login</button>
+        <button type="submit" style={{ padding: 12, borderRadius: 8, border: 'none', background: '#0070f3', color: '#fff', cursor: 'pointer' }}>
+          Sign in
+        </button>
       </form>
-      {message && <p>{message}</p>}
+
+      {message && <p style={{ marginTop: 12 }}>{message}</p>}
     </div>
   );
 }
