@@ -1,45 +1,24 @@
-import { useState } from 'react';
-import { useRouter } from 'next/router';
+import { getClientByPhoneNumberId } from '../../../lib/db.js';
 
-export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const router = useRouter();
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (res.ok) router.push('/dashboard');
-    else setError(data.error);
-  };
+  const { phoneNumber } = req.body;
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'Phone number required' });
+  }
 
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', minHeight: '100vh', alignItems: 'center' }}>
-      <form onSubmit={handleLogin} style={{ padding: 32, border: '1px solid #ccc', borderRadius: 8 }}>
-        <h1 style={{ marginBottom: 16 }}>Login</h1>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 8 }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 8 }}
-        />
-        <button type="submit" style={{ width: '100%', padding: 8 }}>Login</button>
-      </form>
-    </div>
-  );
+  try {
+    const client = await getClientByPhoneNumberId(phoneNumber);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    return res.status(200).json({ client, message: 'Login successful' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
+  }
 }
