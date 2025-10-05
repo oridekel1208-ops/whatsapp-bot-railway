@@ -1,10 +1,10 @@
 // pages/api/webhook.js
-const crypto = require('crypto');
-const {
+import crypto from 'crypto';
+import {
   insertMessage,
   getClientByPhoneNumberId,
   markClientVerified
-} = require('../../lib/db.js');
+} from '../../lib/db.js';
 
 export const config = { runtime: 'nodejs', api: { bodyParser: false } };
 
@@ -22,20 +22,23 @@ async function getRawBody(req) {
 }
 
 export default async function handler(req, res) {
-  // ✅ GET verification
+  // ------------------ GET Verification ------------------
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    if (mode === 'subscribe' && token) {
+    const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('✅ Webhook verified');
       return res.status(200).send(challenge);
-    } else {
-      return res.status(403).send('Verification failed');
     }
+
+    return res.status(403).send('Verification failed');
   }
 
-  // ✅ Only allow POST
+  // ------------------ POST Messages ------------------
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).end('Method Not Allowed');
@@ -45,7 +48,7 @@ export default async function handler(req, res) {
     const raw = await getRawBody(req);
     const rawString = bufferToString(raw);
 
-    // Optional signature verification
+    // Optional: verify signature
     const signatureHeader = req.headers['x-hub-signature-256'];
     if (process.env.META_APP_SECRET && signatureHeader) {
       const hmac = crypto.createHmac('sha256', process.env.META_APP_SECRET);
@@ -55,10 +58,7 @@ export default async function handler(req, res) {
         Buffer.from(expected),
         Buffer.from(signatureHeader)
       );
-      if (!valid) {
-        console.warn('❌ Invalid signature');
-        return res.status(401).send('Invalid signature');
-      }
+      if (!valid) return res.status(401).send('Invalid signature');
     }
 
     const body = JSON.parse(rawString);
@@ -66,24 +66,22 @@ export default async function handler(req, res) {
       for (const entry of body.entry) {
         for (const change of entry.changes || []) {
           const value = change.value || {};
-          const metadata = value.metadata || {};
-          const phoneId = metadata.phone_number_id;
+          const phoneId = value.metadata?.phone_number_id;
           if (!phoneId) continue;
 
-          const client = getClientByPhoneNumberId(phoneId);
+          const client = await getClientByPhoneNumberId(phoneId);
           const client_id = client?.id || null;
 
-          // Mark client verified if first webhook
           if (client && !client.is_verified) {
-            markClientVerified(client.id, true);
-            console.log(`✅ Client ${client.name} verified`);
+            await markClientVerified(client.id, true);
+            console.log(`✅ Client verified: ${client.name}`);
           }
 
           for (const m of value.messages || []) {
             const from = m.from;
             const text = m.text?.body || null;
 
-            insertMessage({
+            await insertMessage({
               client_id,
               whatsapp_id: m.id,
               from_number: from,
@@ -93,8 +91,8 @@ export default async function handler(req, res) {
               provider_payload: m
             });
 
-            // Simple echo reply
             const reply = text ? `You said: ${text}` : "Thanks for your message.";
+
             if (client?.access_token) {
               try {
                 const sendResp = await fetch(
@@ -113,10 +111,9 @@ export default async function handler(req, res) {
                     })
                   }
                 );
-
                 const sendData = await sendResp.json();
 
-                insertMessage({
+                await insertMessage({
                   client_id,
                   whatsapp_id: sendData?.messages?.[0]?.id || null,
                   from_number: phoneId,
@@ -128,8 +125,6 @@ export default async function handler(req, res) {
               } catch (err) {
                 console.error('❌ Failed to send reply:', err);
               }
-            } else {
-              console.error(`🚫 No access token for client ${client_id}`);
             }
           }
         }
@@ -138,7 +133,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('🔥 Webhook Error:', err);
+    console.error('🔥 Webhook error:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 }
