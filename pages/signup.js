@@ -14,7 +14,14 @@ export default function Signup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber })
       });
-      const data = await res.json();
+
+      let data;
+      try {
+        data = await res.json(); // Attempt to parse JSON
+      } catch {
+        data = { error: await res.text() }; // Fallback to plain text
+      }
+
       if (res.ok) {
         setMessage('Signup successful! Please log in.');
         router.push('/login');
