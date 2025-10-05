@@ -23,8 +23,12 @@ export default function Login() {
       }
 
       if (res.ok) {
+        // ✅ Store client session
+        const clientData = { phoneNumber }; // or use data.user if available
+        localStorage.setItem('client', JSON.stringify(clientData));
+
         setMessage('Login successful! Redirecting...');
-        setTimeout(() => router.push('/dashboard'), 1500);
+        setTimeout(() => router.push('/dashboard'), 500);
       } else {
         setMessage(data.error || 'Login failed');
       }
