@@ -1,14 +1,12 @@
 // pages/api/webhook.js
-import crypto from 'crypto';
-import {
+const crypto = require('crypto');
+const {
   insertMessage,
   getClientByPhoneNumberId,
   markClientVerified
-} from '../../lib/db.js';
+} = require('../../lib/db.js');
 
-export const config = {
-  api: { bodyParser: false } // ✅ Raw body needed for signature validation
-};
+exports.config = { api: { bodyParser: false } };
 
 function bufferToString(buffer) {
   return buffer.toString('utf8');
@@ -23,14 +21,12 @@ async function getRawBody(req) {
   });
 }
 
-export default async function handler(req, res) {
-  // ✅ Handle Meta Webhook Verification (GET)
+module.exports = async function handler(req, res) {
+  // ✅ GET verification
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
-
-    console.log('🔎 Incoming Verification:', { mode, token, challenge });
 
     if (mode === 'subscribe' && token) {
       return res.status(200).send(challenge);
@@ -39,7 +35,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // ✅ Only allow POST for message events
+  // ✅ Only allow POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).end('Method Not Allowed');
@@ -49,7 +45,7 @@ export default async function handler(req, res) {
     const raw = await getRawBody(req);
     const rawString = bufferToString(raw);
 
-    // ✅ Optional: Verify signature (skip if not set)
+    // Optional signature verification
     const signatureHeader = req.headers['x-hub-signature-256'];
     if (process.env.META_APP_SECRET && signatureHeader) {
       const hmac = crypto.createHmac('sha256', process.env.META_APP_SECRET);
@@ -66,8 +62,6 @@ export default async function handler(req, res) {
     }
 
     const body = JSON.parse(rawString);
-    console.log('📩 Incoming Webhook:', JSON.stringify(body, null, 2));
-
     if (body.object === 'whatsapp_business_account' && body.entry) {
       for (const entry of body.entry) {
         for (const change of entry.changes || []) {
@@ -75,26 +69,22 @@ export default async function handler(req, res) {
           const metadata = value.metadata || {};
           const phoneId = metadata.phone_number_id;
 
-          if (!phoneId) {
-            console.warn('⚠️ Missing phone_number_id in metadata');
-            continue;
-          }
+          if (!phoneId) continue;
 
-          // ✅ Find client by phone_number_id
-          const client = await getClientByPhoneNumberId(phoneId);
+          const client = getClientByPhoneNumberId(phoneId);
           const client_id = client?.id || null;
 
-          // ✅ If this is the first time receiving webhook, mark verified
+          // Mark client verified if first webhook
           if (client && !client.is_verified) {
-            await markClientVerified(client.id, true);
-            console.log(`✅ Client ${client.name} marked as verified`);
+            markClientVerified(client.id, true);
+            console.log(`✅ Client ${client.name} verified`);
           }
 
           for (const m of value.messages || []) {
             const from = m.from;
             const text = m.text?.body || null;
 
-            await insertMessage({
+            insertMessage({
               client_id,
               whatsapp_id: m.id,
               from_number: from,
@@ -104,7 +94,7 @@ export default async function handler(req, res) {
               provider_payload: m
             });
 
-            // ✅ Send reply *using client’s access token*
+            // Simple echo reply
             const reply = text ? `You said: ${text}` : "Thanks for your message.";
             if (client?.access_token) {
               try {
@@ -113,7 +103,7 @@ export default async function handler(req, res) {
                   {
                     method: 'POST',
                     headers: {
-                      'Authorization': `Bearer ${client.access_token}`,
+                      Authorization: `Bearer ${client.access_token}`,
                       'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -127,7 +117,7 @@ export default async function handler(req, res) {
 
                 const sendData = await sendResp.json();
 
-                await insertMessage({
+                insertMessage({
                   client_id,
                   whatsapp_id: sendData?.messages?.[0]?.id || null,
                   from_number: phoneId,
@@ -140,7 +130,7 @@ export default async function handler(req, res) {
                 console.error('❌ Failed to send reply:', err);
               }
             } else {
-              console.error(`🚫 No access token found for client ${client_id}`);
+              console.error(`🚫 No access token for client ${client_id}`);
             }
           }
         }
@@ -152,4 +142,4 @@ export default async function handler(req, res) {
     console.error('🔥 Webhook Error:', err);
     return res.status(500).json({ error: err.message || String(err) });
   }
-}
+};
