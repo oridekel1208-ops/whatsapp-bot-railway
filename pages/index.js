@@ -4,28 +4,35 @@ export default function Home() {
   const router = useRouter();
 
   return (
-    <div style={{ fontFamily: 'sans-serif' }}>
+    <div style={{ fontFamily: 'sans-serif', margin: 0, padding: 0 }}>
       {/* Navigation Bar */}
       <nav style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '16px 32px',
-        borderBottom: '1px solid #ccc'
+        borderBottom: '1px solid #ccc',
+        position: 'sticky',
+        top: 0,
+        backgroundColor: '#fff',
+        zIndex: 1000
       }}>
-        <h2 style={{ margin: 0, cursor: 'pointer' }} onClick={() => router.push('/')}>
+        <h2
+          style={{ margin: 0, cursor: 'pointer', color: '#0070f3' }}
+          onClick={() => router.push('/')}
+        >
           WhatsApp Bot Service
         </h2>
         <div>
           <button
             onClick={() => router.push('/signup')}
-            style={{ marginRight: 8, padding: '8px 16px', cursor: 'pointer' }}
+            style={{ marginRight: 8, padding: '8px 16px', cursor: 'pointer', borderRadius: 4, border: '1px solid #0070f3', backgroundColor: '#fff', color: '#0070f3' }}
           >
             Sign Up
           </button>
           <button
             onClick={() => router.push('/login')}
-            style={{ padding: '8px 16px', cursor: 'pointer' }}
+            style={{ padding: '8px 16px', cursor: 'pointer', borderRadius: 4, border: '1px solid #0070f3', backgroundColor: '#0070f3', color: '#fff' }}
           >
             Login
           </button>
@@ -35,7 +42,8 @@ export default function Home() {
       {/* Hero Section */}
       <header style={{
         textAlign: 'center',
-        padding: '64px 16px'
+        padding: '64px 16px',
+        backgroundColor: '#f9f9f9'
       }}>
         <h1 style={{ fontSize: '3rem', marginBottom: 16 }}>Build Your WhatsApp Bot</h1>
         <p style={{ fontSize: '1.2rem', maxWidth: 600, margin: '0 auto 24px' }}>
@@ -44,13 +52,13 @@ export default function Home() {
         <div>
           <button
             onClick={() => router.push('/signup')}
-            style={{ marginRight: 8, padding: '12px 24px', fontSize: '1rem', cursor: 'pointer' }}
+            style={{ marginRight: 8, padding: '12px 24px', fontSize: '1rem', cursor: 'pointer', borderRadius: 4, border: 'none', backgroundColor: '#0070f3', color: '#fff' }}
           >
             Get Started
           </button>
           <button
             onClick={() => router.push('/login')}
-            style={{ padding: '12px 24px', fontSize: '1rem', cursor: 'pointer' }}
+            style={{ padding: '12px 24px', fontSize: '1rem', cursor: 'pointer', borderRadius: 4, border: '1px solid #0070f3', backgroundColor: '#fff', color: '#0070f3' }}
           >
             Login
           </button>
@@ -75,6 +83,11 @@ export default function Home() {
           <li>Send and receive messages in real time from the dashboard</li>
         </ol>
       </section>
+
+      {/* Footer */}
+      <footer style={{ padding: '16px', textAlign: 'center', borderTop: '1px solid #ccc' }}>
+        &copy; {new Date().getFullYear()} WhatsApp Bot Service. All rights reserved.
+      </footer>
     </div>
   );
 }
