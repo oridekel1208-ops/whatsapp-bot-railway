@@ -17,14 +17,14 @@ export default function Signup() {
 
       let data;
       try {
-        data = await res.json(); // Attempt to parse JSON
+        data = await res.clone().json(); // safely attempt JSON
       } catch {
-        data = { error: await res.text() }; // Fallback to plain text
+        data = { error: await res.clone().text() }; // fallback to plain text
       }
 
       if (res.ok) {
-        setMessage('Signup successful! Please log in.');
-        router.push('/login');
+        setMessage('Signup successful! Redirecting to login...');
+        setTimeout(() => router.push('/login'), 1500);
       } else {
         setMessage(data.error || 'Signup failed');
       }
