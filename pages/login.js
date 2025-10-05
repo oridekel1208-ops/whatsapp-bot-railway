@@ -14,10 +14,17 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber })
       });
-      const data = await res.json();
+
+      let data;
+      try {
+        data = await res.json(); // Attempt to parse JSON
+      } catch {
+        data = { error: await res.text() }; // Fallback to plain text
+      }
+
       if (res.ok) {
         setMessage('Login successful!');
-        router.push('/dashboard'); // redirect after login
+        router.push('/dashboard'); // Redirect to dashboard after login
       } else {
         setMessage(data.error || 'Login failed');
       }
