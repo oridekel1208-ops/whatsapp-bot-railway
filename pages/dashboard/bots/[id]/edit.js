@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
- 
+
 export default function EditBot() {
   const router = useRouter();
-  const { id } = router.query; // This is the bot ID from the URL
+  const { id } = router.query;
   const [bot, setBot] = useState(null);
   const [flows, setFlows] = useState([]);
   const [welcome, setWelcome] = useState('');
@@ -13,37 +13,31 @@ export default function EditBot() {
     fetch(`/api/bots/${id}`)
       .then(r => r.json())
       .then(data => {
-        if (!data) {
-          alert('Bot not found');
-          router.push('/dashboard/bots');
-          return;
-        }
         setBot(data);
         setFlows(data.config?.flows || []);
         setWelcome(data.config?.welcome_message || '');
-      })
-      .catch(() => {
-        alert('Failed to fetch bot');
-        router.push('/dashboard/bots');
       });
   }, [id]);
 
-  const addFlow = () => setFlows([...flows, { question: '', answers: [{ text: '', reply: '' }] }]);
-  const addAnswer = (fi) => {
+  const addFlow = () => {
+    setFlows([...flows, { question: '', answers: [{ text: '', reply: '' }] }]);
+  };
+
+  const addAnswer = (flowIndex) => {
     const newFlows = [...flows];
-    newFlows[fi].answers.push({ text: '', reply: '' });
+    newFlows[flowIndex].answers.push({ text: '', reply: '' });
     setFlows(newFlows);
   };
 
-  const handleFlowChange = (fi, key, value) => {
+  const handleFlowChange = (flowIndex, key, value) => {
     const newFlows = [...flows];
-    newFlows[fi][key] = value;
+    newFlows[flowIndex][key] = value;
     setFlows(newFlows);
   };
 
-  const handleAnswerChange = (fi, ai, key, value) => {
+  const handleAnswerChange = (flowIndex, answerIndex, key, value) => {
     const newFlows = [...flows];
-    newFlows[fi].answers[ai][key] = value;
+    newFlows[flowIndex].answers[answerIndex][key] = value;
     setFlows(newFlows);
   };
 
@@ -62,14 +56,9 @@ export default function EditBot() {
   return (
     <div style={{ padding: 32, fontFamily: 'Inter, Arial, sans-serif' }}>
       <h1>Edit Bot {bot.phone_number_id}</h1>
-
       <div style={{ marginBottom: 16 }}>
         <label>Welcome Message:</label>
-        <input
-          value={welcome}
-          onChange={e => setWelcome(e.target.value)}
-          style={{ width: '100%', padding: 8, marginTop: 4 }}
-        />
+        <input value={welcome} onChange={e => setWelcome(e.target.value)} style={{ width: '100%', padding: 8, marginTop: 4 }} />
       </div>
 
       <h2>Flows</h2>
