@@ -3,13 +3,14 @@ import { useRouter } from "next/router";
 
 export default function EditBot() {
   const router = useRouter();
-  const { id } = router.query;
+  const { id } = router.query; // dynamic route
   const [bot, setBot] = useState(null);
   const [flows, setFlows] = useState([]);
   const [welcome, setWelcome] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return; // wait until id is available
+    if (!id) return; // wait until id exists
 
     const stored = localStorage.getItem("bots");
     if (!stored) {
@@ -30,6 +31,7 @@ export default function EditBot() {
     setBot(found);
     setFlows(found.config?.flows || []);
     setWelcome(found.config?.welcome_message || "");
+    setLoading(false);
   }, [id, router]);
 
   const addFlow = () => setFlows([...flows, { question: "", answers: [{ text: "", reply: "" }] }]);
@@ -38,13 +40,11 @@ export default function EditBot() {
     newFlows[fi].answers.push({ text: "", reply: "" });
     setFlows(newFlows);
   };
-
   const handleFlowChange = (fi, key, value) => {
     const newFlows = [...flows];
     newFlows[fi][key] = value;
     setFlows(newFlows);
   };
-
   const handleAnswerChange = (fi, ai, key, value) => {
     const newFlows = [...flows];
     newFlows[fi].answers[ai][key] = value;
@@ -60,7 +60,7 @@ export default function EditBot() {
     alert("Bot saved!");
   };
 
-  if (!bot) return <p>Loading bot...</p>;
+  if (loading) return <p>Loading bot...</p>;
 
   return (
     <div style={{ padding: 32, fontFamily: "Inter, Arial, sans-serif" }}>
