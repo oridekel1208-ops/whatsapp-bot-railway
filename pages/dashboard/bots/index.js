@@ -1,195 +1,121 @@
-// pages/dashboard/bots/index.js
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 
-export default function BotsDashboard() {
+export default function EditBot() {
   const router = useRouter();
-  const [bots, setBots] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { id } = router.query;
+  const [bot, setBot] = useState(null);
+  const [flows, setFlows] = useState([]);
+  const [welcome, setWelcome] = useState("");
 
   useEffect(() => {
-    // Load bots from localStorage for now
+    if (!id) return; // wait until id is available
+
     const stored = localStorage.getItem("bots");
-    if (stored) {
-      setBots(JSON.parse(stored));
+    if (!stored) {
+      alert("No bots found");
+      router.push("/dashboard/bots");
+      return;
     }
-    setLoading(false);
-  }, []);
 
-  const handleAdd = () => {
-    router.push("/dashboard/bots/add");
+    const bots = JSON.parse(stored);
+    const found = bots.find((b) => b.id.toString() === id.toString());
+
+    if (!found) {
+      alert("Bot not found");
+      router.push("/dashboard/bots");
+      return;
+    }
+
+    setBot(found);
+    setFlows(found.config?.flows || []);
+    setWelcome(found.config?.welcome_message || "");
+  }, [id, router]);
+
+  const addFlow = () => setFlows([...flows, { question: "", answers: [{ text: "", reply: "" }] }]);
+  const addAnswer = (fi) => {
+    const newFlows = [...flows];
+    newFlows[fi].answers.push({ text: "", reply: "" });
+    setFlows(newFlows);
   };
 
-  const handleEdit = (botId) => {
-    // FIXED ROUTE: point to /[id]/edit
-    router.push(`/dashboard/bots/${botId}/edit`);
+  const handleFlowChange = (fi, key, value) => {
+    const newFlows = [...flows];
+    newFlows[fi][key] = value;
+    setFlows(newFlows);
   };
 
-  const handleDelete = (botId) => {
-    if (!confirm("Are you sure you want to delete this bot?")) return;
+  const handleAnswerChange = (fi, ai, key, value) => {
+    const newFlows = [...flows];
+    newFlows[fi].answers[ai][key] = value;
+    setFlows(newFlows);
+  };
 
-    const updated = bots.filter((b) => b.id !== botId);
-    setBots(updated);
+  const saveConfig = () => {
+    const stored = JSON.parse(localStorage.getItem("bots") || "[]");
+    const updated = stored.map((b) =>
+      b.id.toString() === bot.id.toString() ? { ...b, config: { welcome_message: welcome, flows } } : b
+    );
     localStorage.setItem("bots", JSON.stringify(updated));
+    alert("Bot saved!");
   };
 
-  if (loading) return <div style={{ padding: 32 }}>Loading bots...</div>;
+  if (!bot) return <p>Loading bot...</p>;
 
   return (
-    <div style={{ display: "flex", fontFamily: "Inter, Arial, sans-serif" }}>
-      {/* Sidebar */}
-      <aside
-        style={{
-          width: 220,
-          background: "#f8fafc",
-          borderRight: "1px solid #e5e7eb",
-          height: "100vh",
-          padding: "20px 16px",
-          boxSizing: "border-box",
-        }}
-      >
-        <h2 style={{ marginBottom: 24, fontSize: 18 }}>Dashboard</h2>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <button
-            onClick={() => router.push("/dashboard")}
-            style={navButtonStyle}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => router.push("/dashboard/bots")}
-            style={{ ...navButtonStyle, background: "#e0f2fe" }}
-          >
-            Bots
-          </button>
-          <button
-            onClick={() => router.push("/dashboard/settings")}
-            style={navButtonStyle}
-          >
-            Settings
-          </button>
-        </nav>
-      </aside>
+    <div style={{ padding: 32, fontFamily: "Inter, Arial, sans-serif" }}>
+      <h1>Edit Bot #{bot.id.toString().slice(-5)}</h1>
 
-      {/* Main Content */}
-      <main style={{ flex: 1, padding: 32 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-          }}
-        >
-          <h1 style={{ margin: 0 }}>Your Bots</h1>
-          <button
-            onClick={handleAdd}
-            style={{
-              background: "#0070f3",
-              color: "#fff",
-              padding: "10px 16px",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-            }}
-          >
-            + Add New Bot
+      <div style={{ marginBottom: 16 }}>
+        <label>Welcome Message:</label>
+        <input
+          value={welcome}
+          onChange={(e) => setWelcome(e.target.value)}
+          style={{ width: "100%", padding: 8, marginTop: 4 }}
+        />
+      </div>
+
+      <h2>Flows</h2>
+      {flows.map((flow, fi) => (
+        <div key={fi} style={{ border: "1px solid #e6eef8", padding: 12, marginBottom: 12, borderRadius: 8 }}>
+          <input
+            placeholder="Question"
+            value={flow.question}
+            onChange={(e) => handleFlowChange(fi, "question", e.target.value)}
+            style={{ width: "100%", padding: 6, marginBottom: 8 }}
+          />
+          {flow.answers.map((ans, ai) => (
+            <div key={ai} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <input
+                placeholder="Answer text (option)"
+                value={ans.text}
+                onChange={(e) => handleAnswerChange(fi, ai, "text", e.target.value)}
+                style={{ flex: 1, padding: 6 }}
+              />
+              <input
+                placeholder="Reply (leave empty for open reply)"
+                value={ans.reply}
+                onChange={(e) => handleAnswerChange(fi, ai, "reply", e.target.value)}
+                style={{ flex: 1, padding: 6 }}
+              />
+            </div>
+          ))}
+          <button onClick={() => addAnswer(fi)} style={{ padding: 6, marginTop: 4 }}>
+            Add Answer
           </button>
         </div>
+      ))}
 
-        {bots.length === 0 ? (
-          <div
-            style={{
-              background: "#f9fafb",
-              padding: 24,
-              borderRadius: 8,
-              textAlign: "center",
-              color: "#64748b",
-            }}
-          >
-            No bots yet. Click <strong>“+ Add New Bot”</strong> to create one.
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-              gap: 16,
-            }}
-          >
-            {bots.map((bot) => (
-              <div
-                key={bot.id}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 10,
-                  padding: 20,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
-              >
-                <div>
-                  <h3 style={{ marginBottom: 6 }}>
-                    Bot #{bot.id.toString().slice(-5)}
-                  </h3>
-                  <p style={{ fontSize: 14, color: "#475569" }}>
-                    📱 Phone ID: {bot.phoneNumberId}
-                  </p>
-                  <p style={{ fontSize: 14, color: "#94a3b8" }}>
-                    Created: {new Date(bot.createdAt).toLocaleString()}
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: 12,
-                  }}
-                >
-                  <button
-                    onClick={() => handleEdit(bot.id)}
-                    style={{
-                      border: "1px solid #e2e8f0",
-                      background: "#f8fafc",
-                      borderRadius: 6,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(bot.id)}
-                    style={{
-                      border: "1px solid #fee2e2",
-                      background: "#fee2e2",
-                      color: "#b91c1c",
-                      borderRadius: 6,
-                      padding: "6px 10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
+      <button onClick={addFlow} style={{ padding: 8, marginBottom: 12 }}>
+        Add Question
+      </button>
+      <br />
+      <button
+        onClick={saveConfig}
+        style={{ padding: 8, background: "#0070f3", color: "#fff", border: "none", cursor: "pointer" }}
+      >
+        Save Bot
+      </button>
     </div>
   );
 }
-
-const navButtonStyle = {
-  background: "none",
-  border: "none",
-  textAlign: "left",
-  padding: "8px 10px",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontSize: 15,
-};
