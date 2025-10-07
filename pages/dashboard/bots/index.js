@@ -1,3 +1,4 @@
+// pages/dashboard/bots/index.js
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -20,7 +21,8 @@ export default function BotsDashboard() {
   };
 
   const handleEdit = (botId) => {
-    router.push(`/dashboard/bots/edit/${botId}`);
+    // FIXED ROUTE: point to /[id]/edit
+    router.push(`/dashboard/bots/${botId}/edit`);
   };
 
   const handleDelete = (botId) => {
