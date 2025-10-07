@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-
+ 
 export default function EditBot() {
   const router = useRouter();
   const { id } = router.query; // This is the bot ID from the URL
