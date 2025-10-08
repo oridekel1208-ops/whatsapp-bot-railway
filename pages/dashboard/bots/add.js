@@ -1,3 +1,4 @@
+// pages/dashboard/bots/add.js
 import { useState } from "react";
 import { useRouter } from "next/router";
 
@@ -5,123 +6,97 @@ export default function AddBot() {
   const router = useRouter();
   const [phoneNumberId, setPhoneNumberId] = useState("");
   const [accessToken, setAccessToken] = useState("");
-  const [status, setStatus] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const handleVerify = async () => {
     if (!phoneNumberId || !accessToken) {
-      setStatus("Please fill both fields.");
+      alert("Please enter both fields");
       return;
     }
 
-    setIsVerifying(true);
-    setStatus("Verifying...");
-
+    setVerifying(true);
     try {
       const res = await fetch(
-        `https://graph.facebook.com/v17.0/${phoneNumberId}?access_token=${accessToken}`
+        `https://graph.facebook.com/v17.0/${phoneNumberId}?fields=verified_name&access_token=${accessToken}`
       );
+      const data = await res.json();
 
-      if (res.ok) {
-        setStatus("✅ Token verified successfully!");
+      if (data.error) {
+        alert("❌ Invalid token or phone ID: " + data.error.message);
       } else {
-        const text = await res.text();
-        setStatus(`❌ Verification failed: ${text}`);
+        const stored = JSON.parse(localStorage.getItem("bots") || "[]");
+        const newBot = {
+          id: Date.now(),
+          phoneNumberId,
+          accessToken,
+          createdAt: new Date().toISOString(),
+        };
+        stored.push(newBot);
+        localStorage.setItem("bots", JSON.stringify(stored));
+        alert("✅ Bot verified and saved!");
+        router.push("/dashboard/bots");
       }
     } catch (err) {
-      setStatus(`❌ Error: ${err.message}`);
-    }
-
-    setIsVerifying(false);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!phoneNumberId || !accessToken) {
-      setStatus("Please fill both fields.");
-      return;
-    }
-
-    // ✅ Save bot data to your backend
-    const res = await fetch("/api/bots/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phoneNumberId, accessToken }),
-    });
-
-    if (res.ok) {
-      const bot = await res.json();
-      // Save locally for demo purposes
-      const bots = JSON.parse(localStorage.getItem("bots") || "[]");
-      bots.push(bot);
-      localStorage.setItem("bots", JSON.stringify(bots));
-
-      setStatus("✅ Bot added successfully!");
-      setTimeout(() => router.push("/dashboard/bots"), 1000);
-    } else {
-      const text = await res.text();
-      setStatus(`❌ Failed to save: ${text}`);
+      alert("Failed to verify: " + err.message);
+    } finally {
+      setVerifying(false);
     }
   };
 
   return (
-    <div style={{ padding: "32px", maxWidth: 600, margin: "0 auto", fontFamily: "sans-serif" }}>
-      <h1>Add New Bot</h1>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <label>
-          Phone Number ID:
-          <input
-            value={phoneNumberId}
-            onChange={(e) => setPhoneNumberId(e.target.value)}
-            placeholder="123456789012345"
-            style={{ padding: 8, width: "100%" }}
-          />
-        </label>
+    <div style={{ padding: 40, fontFamily: "Inter, Arial, sans-serif" }}>
+      <h1>Add New WhatsApp Bot</h1>
+      <p style={{ color: "#475569", marginBottom: 20 }}>
+        Get your <strong>Phone Number ID</strong> and <strong>Access Token</strong> from
+        <br />
+        <a
+          href="https://developers.facebook.com/apps"
+          target="_blank"
+          rel="noreferrer"
+        >
+          https://developers.facebook.com/apps
+        </a>
+      </p>
 
-        <label>
-          Access Token:
-          <input
-            type="password"
-            value={accessToken}
-            onChange={(e) => setAccessToken(e.target.value)}
-            placeholder="EAAG...XYZ"
-            style={{ padding: 8, width: "100%" }}
-          />
-        </label>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, width: 360 }}>
+        <label>Phone Number ID</label>
+        <input
+          type="text"
+          value={phoneNumberId}
+          onChange={(e) => setPhoneNumberId(e.target.value)}
+          style={inputStyle}
+        />
+
+        <label>Access Token</label>
+        <input
+          type="text"
+          value={accessToken}
+          onChange={(e) => setAccessToken(e.target.value)}
+          style={inputStyle}
+        />
 
         <button
-          type="button"
           onClick={handleVerify}
-          disabled={isVerifying}
+          disabled={verifying}
           style={{
-            padding: "10px 16px",
             background: "#0070f3",
             color: "white",
-            border: "none",
-            cursor: "pointer",
-            borderRadius: 4,
-          }}
-        >
-          {isVerifying ? "Verifying..." : "Verify Token"}
-        </button>
-
-        <button
-          type="submit"
-          style={{
             padding: "10px 16px",
-            background: "green",
-            color: "white",
             border: "none",
+            borderRadius: 6,
             cursor: "pointer",
-            borderRadius: 4,
           }}
         >
-          Save Bot
+          {verifying ? "Verifying..." : "Verify & Save"}
         </button>
-      </form>
-
-      {status && <p style={{ marginTop: 16 }}>{status}</p>}
+      </div>
     </div>
   );
 }
+
+const inputStyle = {
+  border: "1px solid #e2e8f0",
+  padding: "8px 10px",
+  borderRadius: 6,
+  fontSize: 15,
+};
