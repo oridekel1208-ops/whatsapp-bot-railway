@@ -1,62 +1,73 @@
 // pages/dashboard/settings.js
-import { useEffect, useState } from 'react';
-import DashboardLayout from '../../components/DashboardLayout';
-import { useRouter } from 'next/router';
+import { useState, useEffect } from "react";
 
 export default function SettingsPage() {
-  const [client, setClient] = useState(null);
-  const [name, setName] = useState('');
-  const [message, setMessage] = useState('');
-  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem('client');
-    if (!stored) { router.push('/login'); return; }
-    const parsed = JSON.parse(stored);
-    setClient(parsed);
-    setName(parsed.name || '');
+    async function fetchToken() {
+      try {
+        const res = await fetch("/api/user/token");
+        if (!res.ok) throw new Error("Failed to fetch token");
+        const data = await res.json();
+        setToken(data.token || "");
+      } catch (err) {
+        console.error(err);
+        setMessage("⚠️ Could not load your token.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchToken();
   }, []);
 
-  async function saveSettings(e) {
+  async function handleSave(e) {
     e.preventDefault();
-    if (!client) return;
-    setMessage('Saving...');
+    setMessage("");
     try {
-      const res = await fetch('/api/clients/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number_id: client.phone_number_id, name })
+      const res = await fetch("/api/user/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
       });
-      const body = await res.json();
-      if (res.ok) {
-        setMessage('Saved');
-        // update localStorage
-        const updated = { ...client, name };
-        localStorage.setItem('client', JSON.stringify(updated));
-        setClient(updated);
-      } else {
-        setMessage(body.error || 'Save failed');
-      }
+      const data = await res.json();
+      if (res.ok) setMessage("✅ Token updated successfully!");
+      else setMessage("❌ Failed to update token: " + (data.error || ""));
     } catch (err) {
-      setMessage(err.message || 'Save failed');
+      console.error(err);
+      setMessage("❌ Error updating token.");
     }
   }
 
-  if (!client) return (
-    <DashboardLayout>
-      <div>Loading settings...</div>
-    </DashboardLayout>
-  );
+  if (loading) return <p>Loading...</p>;
 
   return (
-    <DashboardLayout>
-      <h1>Settings</h1>
-      <form onSubmit={saveSettings} style={{ maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <label style={{ fontSize: 13, color: '#475569' }}>Bot / Account name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 10, borderRadius: 8, border: '1px solid #eef2ff' }} />
-        <button type="submit" style={{ padding: 10, borderRadius: 8, border: 'none', background: '#0070f3', color: '#fff' }}>Save</button>
+    <div className="p-6 max-w-xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Settings</h1>
+
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Permanent Token</label>
+          <input
+            type="text"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-lg"
+            placeholder="Enter your WhatsApp permanent token"
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Save Changes
+        </button>
+
+        {message && <p className="mt-3 text-sm">{message}</p>}
       </form>
-      {message && <div style={{ marginTop: 12 }}>{message}</div>}
-    </DashboardLayout>
+    </div>
   );
 }
