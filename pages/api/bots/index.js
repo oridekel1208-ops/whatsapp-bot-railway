@@ -10,11 +10,17 @@ import {
 export default async function handler(req, res) {
   await ensureTables();
 
-  // 🧭 GET: Fetch all bots
+  // ✅ GET: Fetch all bots
   if (req.method === "GET") {
     try {
       const result = await pool.query(`
-        SELECT bots.*, clients.phone_number_id
+        SELECT 
+          bots.id,
+          bots.name,
+          bots.access_token,
+          bots.created_at,
+          clients.phone_number_id,
+          clients.name AS client_name
         FROM bots
         LEFT JOIN clients ON bots.client_id = clients.id
         ORDER BY bots.id DESC;
@@ -26,7 +32,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // ➕ POST: Create a new bot
+  // ✅ POST: Create a new bot
   if (req.method === "POST") {
     try {
       const { phoneNumberId, accessToken, name = "New Bot" } = req.body;
@@ -37,7 +43,7 @@ export default async function handler(req, res) {
           .json({ error: "Missing fields: phoneNumberId or accessToken" });
       }
 
-      // ✅ Step 1: Verify token with Meta API
+      // ✅ Verify token with Meta
       const verifyRes = await fetch(
         `https://graph.facebook.com/v17.0/${phoneNumberId}?access_token=${accessToken}`
       );
@@ -49,7 +55,7 @@ export default async function handler(req, res) {
           .json({ error: "Invalid phone number ID or token" });
       }
 
-      // ✅ Step 2: Ensure client exists or create new one
+      // ✅ Ensure client exists
       let client = await getClientByPhoneNumberId(phoneNumberId);
       if (!client) {
         client = await createClient({
@@ -61,7 +67,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // ✅ Step 3: Create bot linked to client
+      // ✅ Create bot linked to client
       const newBot = await addBot({
         client_id: client.id,
         name,
