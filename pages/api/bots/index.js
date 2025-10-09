@@ -1,20 +1,17 @@
-import { pool } from '../../../lib/db';
+// pages/api/bots/index.js
+import { pool } from "../../../lib/db";
 
 export default async function handler(req, res) {
-  if (req.method === 'GET') {
-    const { client_id } = req.query;
-    const result = await pool.query('SELECT * FROM bots WHERE client_id=$1', [client_id]);
-    return res.json(result.rows);
+  if (req.method === "GET") {
+    try {
+      const { rows } = await pool.query(`SELECT id, name, access_token FROM bots ORDER BY created_at DESC`);
+      return res.status(200).json(rows);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Failed to fetch bots" });
+    }
   }
 
-  if (req.method === 'POST') {
-    const { client_id, phone_number_id, access_token } = req.body;
-    const result = await pool.query(
-      'INSERT INTO bots (client_id, phone_number_id, access_token, connected, config) VALUES ($1,$2,$3,false,$4) RETURNING *',
-      [client_id, phone_number_id, access_token, JSON.stringify({ welcome_message: '', flows: [] })]
-    );
-    return res.json(result.rows[0]);
-  }
-
-  res.status(405).json({ error: 'Method not allowed' });
+  res.setHeader("Allow", ["GET"]);
+  return res.status(405).end("Method Not Allowed");
 }
