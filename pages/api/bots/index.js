@@ -1,5 +1,11 @@
 // pages/api/bots/index.js
-import { ensureTables, addBot, getClientByPhoneNumberId, createClient, pool } from "../../../lib/db.js";
+import {
+  ensureTables,
+  addBot,
+  getClientByPhoneNumberId,
+  createClient,
+  pool,
+} from "../../../lib/db.js";
 
 export default async function handler(req, res) {
   await ensureTables();
@@ -26,7 +32,9 @@ export default async function handler(req, res) {
       const { phoneNumberId, accessToken, name = "New Bot" } = req.body;
 
       if (!phoneNumberId || !accessToken) {
-        return res.status(400).json({ error: "Missing fields: phoneNumberId or accessToken" });
+        return res
+          .status(400)
+          .json({ error: "Missing fields: phoneNumberId or accessToken" });
       }
 
       // ✅ Step 1: Verify token with Meta API
@@ -36,7 +44,9 @@ export default async function handler(req, res) {
 
       if (!verifyRes.ok) {
         console.error("❌ Invalid WhatsApp credentials");
-        return res.status(400).json({ error: "Invalid phone number ID or token" });
+        return res
+          .status(400)
+          .json({ error: "Invalid phone number ID or token" });
       }
 
       // ✅ Step 2: Ensure client exists or create new one
@@ -69,4 +79,5 @@ export default async function handler(req, res) {
 
   // 🚫 Unsupported method
   res.setHeader("Allow", ["GET", "POST"]);
-  res.status(405).end(`Meth
+  res.status(405).end(`Method ${req.method} Not Allowed`);
+}
