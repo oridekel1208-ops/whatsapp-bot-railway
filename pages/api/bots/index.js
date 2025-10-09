@@ -1,17 +1,18 @@
 // pages/api/bots/index.js
-import { pool } from "../../../lib/db";
+import { pool, ensureTables } from "../../../lib/db.js";
 
 export default async function handler(req, res) {
-  if (req.method === "GET") {
-    try {
-      const { rows } = await pool.query(`SELECT id, name, access_token FROM bots ORDER BY created_at DESC`);
-      return res.status(200).json(rows);
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Failed to fetch bots" });
-    }
-  }
+  await ensureTables();
 
-  res.setHeader("Allow", ["GET"]);
-  return res.status(405).end("Method Not Allowed");
+  try {
+    const result = await pool.query(
+      `SELECT b.id, b.name, b.access_token, c.phone_number_id
+       FROM bots b
+       JOIN clients c ON c.id = b.client_id
+       ORDER BY b.created_at DESC;`
+    );
+    res.status(200).json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
