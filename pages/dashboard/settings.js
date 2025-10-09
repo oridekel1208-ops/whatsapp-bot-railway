@@ -4,135 +4,82 @@ import { useEffect, useState } from "react";
 export default function SettingsPage() {
   const [bots, setBots] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [newToken, setNewToken] = useState("");
 
   useEffect(() => {
-    async function fetchBots() {
-      try {
-        const res = await fetch("/api/bots");
-        const data = await res.json();
+    fetch("/api/bots")
+      .then((res) => res.json())
+      .then((data) => {
         setBots(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
         setLoading(false);
-      }
-    }
-    fetchBots();
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const handleEditClick = (bot) => {
-    setEditingId(bot.id);
-    setNewToken(bot.access_token);
+  const handleTokenChange = (botId, token) => {
+    setBots((prev) =>
+      prev.map((b) => (b.id === botId ? { ...b, access_token: token } : b))
+    );
   };
 
-  const handleSave = async () => {
-    try {
-      const res = await fetch(`/api/bots/${editingId}/update-token`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: newToken }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update token");
-
-      setBots((prev) =>
-        prev.map((b) => (b.id === editingId ? { ...b, access_token: newToken } : b))
-      );
-      setEditingId(null);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update token");
-    }
+  const saveToken = async (botId, token) => {
+    const res = await fetch(`/api/bots/${botId}/update-token`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token: token }),
+    });
+    if (res.ok) alert("Token updated!");
+    else alert("Failed to update token.");
   };
 
-  if (loading) return <div style={{ padding: 32 }}>Loading...</div>;
+  if (loading) return <div style={{ padding: 32 }}>Loading bots...</div>;
 
   return (
     <div style={{ padding: 32, fontFamily: "Inter, Arial, sans-serif" }}>
-      <h1 style={{ marginBottom: 24 }}>Settings</h1>
-      <p>Manage your bot tokens and connection settings below.</p>
-
+      <h1>Settings</h1>
       {bots.length === 0 ? (
-        <div style={{ marginTop: 16, color: "#64748b" }}>
-          No bots found. Create one in the Bots section.
-        </div>
+        <p>No bots found. Create one in the Bots section.</p>
       ) : (
-        <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-          {bots.map((bot) => (
-            <div
-              key={bot.id}
+        bots.map((bot) => (
+          <div
+            key={bot.id}
+            style={{
+              border: "1px solid #e6eef8",
+              padding: 16,
+              marginBottom: 12,
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <strong>{bot.name || "Bot #" + bot.id}</strong>
+              <div>
+                Phone ID: <code>{bot.phone_number_id}</code>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={bot.access_token || ""}
+              placeholder="Access token"
+              onChange={(e) => handleTokenChange(bot.id, e.target.value)}
+              style={{ flex: 2, padding: 6 }}
+            />
+            <button
+              onClick={() => saveToken(bot.id, bot.access_token)}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                background: "#f8fafc",
-                padding: 12,
+                padding: "6px 12px",
+                background: "#0070f3",
+                color: "#fff",
+                border: "none",
                 borderRadius: 6,
-                border: "1px solid #e2e8f0",
+                cursor: "pointer",
               }}
             >
-              <div style={{ flex: 1 }}>
-                <strong>{bot.name}</strong>
-                {editingId !== bot.id && (
-                  <div style={{ color: "#475569", fontSize: 14 }}>Token: {bot.access_token}</div>
-                )}
-              </div>
-
-              {editingId === bot.id ? (
-                <>
-                  <input
-                    type="text"
-                    value={newToken}
-                    onChange={(e) => setNewToken(e.target.value)}
-                    style={{ flex: 1, padding: 6, borderRadius: 4, border: "1px solid #cbd5e1" }}
-                  />
-                  <button
-                    onClick={handleSave}
-                    style={{
-                      padding: "6px 12px",
-                      background: "#10b981",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 4,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    style={{
-                      padding: "6px 12px",
-                      background: "#f87171",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 4,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => handleEditClick(bot)}
-                  style={{
-                    padding: "6px 12px",
-                    background: "#3b82f6",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                  }}
-                >
-                  Edit Token
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+              Save
+            </button>
+          </div>
+        ))
       )}
     </div>
   );
