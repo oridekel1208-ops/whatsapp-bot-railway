@@ -10,7 +10,6 @@ import {
 export default async function handler(req, res) {
   await ensureTables();
 
-  // ✅ GET: Fetch all bots
   if (req.method === "GET") {
     try {
       const result = await pool.query(`
@@ -32,21 +31,14 @@ export default async function handler(req, res) {
     }
   }
 
-  // ✅ POST: Create a new bot (no Meta validation)
   if (req.method === "POST") {
     try {
-      let { phoneNumberId, accessToken, name = "New Bot" } = req.body;
-
-      if (!phoneNumberId) {
-        return res.status(400).json({ error: "Missing field: phoneNumberId" });
+      const { phoneNumberId, accessToken, name = "New Bot" } = req.body;
+      if (!phoneNumberId || !accessToken) {
+        return res.status(400).json({ error: "Missing fields" });
       }
 
-      if (!accessToken) {
-        console.warn("⚠ No access token, using DUMMY_TOKEN");
-        accessToken = "DUMMY_TOKEN";
-      }
-
-      // ✅ Ensure client exists or create new
+      // ✅ Ensure client exists
       let client = await getClientByPhoneNumberId(phoneNumberId);
       if (!client) {
         client = await createClient({
@@ -58,7 +50,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // ✅ Insert bot
+      // ✅ Always insert bot properly
       const newBot = await addBot({
         client_id: client.id,
         name,
@@ -73,7 +65,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // 🚫 Unsupported method
   res.setHeader("Allow", ["GET", "POST"]);
   res.status(405).end(`Method ${req.method} Not Allowed`);
 }
