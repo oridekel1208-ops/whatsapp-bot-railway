@@ -1,5 +1,5 @@
 // pages/api/bots/[id]/update-token.js
-import { updateBotAccessToken } from "../../../lib/db.js";
+import { updateBotAccessToken } from "../../../../lib/db.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
