@@ -1,122 +1,87 @@
 // pages/dashboard/settings.js
 import { useEffect, useState } from "react";
 
-export default function SettingsPage() {
+export default function Settings() {
   const [bots, setBots] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(null);
-  const [message, setMessage] = useState(null);
 
-  // Fetch bots on mount
   useEffect(() => {
     fetch("/api/bots")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setBots(data);
+      .then(res => res.json())
+      .then(data => {
+        setBots(data);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Error fetching bots:", err);
+      .catch(err => {
+        console.error(err);
         setLoading(false);
       });
   }, []);
 
-  async function updateToken(botId, newToken) {
-    setSaving(botId);
-    setMessage(null);
+  const handleTokenChange = async (botId, newToken) => {
     try {
       const res = await fetch(`/api/bots/${botId}/update-token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessToken: newToken }),
       });
-      const result = await res.json();
-
-      if (res.ok) {
-        setBots((prev) =>
-          prev.map((b) => (b.id === botId ? { ...b, access_token: newToken } : b))
-        );
-        setMessage({ type: "success", text: "✅ Token updated successfully" });
-      } else {
-        setMessage({ type: "error", text: `❌ ${result.error || "Update failed"}` });
-      }
+      if (!res.ok) throw new Error("Failed to update token");
+      const updated = await res.json();
+      setBots(bots.map(b => (b.id === updated.id ? updated : b)));
     } catch (err) {
-      console.error("Error updating token:", err);
-      setMessage({ type: "error", text: "🔥 Network or server error" });
+      console.error(err);
+      alert("Failed to update token");
     }
-    setSaving(null);
-  }
+  };
 
-  if (loading) return <div className="p-6 text-gray-600">Loading bots...</div>;
+  if (loading) return <div>Loading bots...</div>;
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Settings</h1>
-
-      {message && (
-        <div
-          className={`p-3 mb-4 rounded-md ${
-            message.type === "success"
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
-
+    <div style={{ padding: "2rem" }}>
+      <h1>Settings</h1>
       {bots.length === 0 ? (
-        <div className="text-gray-500">No bots found. Create one first.</div>
+        <p>No bots found. Create one first.</p>
       ) : (
-        <div className="space-y-6">
-          {bots.map((bot) => (
-            <div
-              key={bot.id}
-              className="border rounded-xl p-4 shadow-sm bg-white"
-            >
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="text-lg font-medium">
-                  {bot.name || "Unnamed Bot"}
-                </h2>
-                <span className="text-sm text-gray-500">
-                  ID: {bot.id}
-                </span>
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Access Token
-                </label>
-                <input
-                  type="text"
-                  defaultValue={bot.access_token}
-                  onChange={(e) =>
-                    setBots((prev) =>
-                      prev.map((b) =>
-                        b.id === bot.id
-                          ? { ...b, access_token: e.target.value }
-                          : b
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th>Bot Name</th>
+              <th>Client</th>
+              <th>Phone Number ID</th>
+              <th>Token</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bots.map(bot => (
+              <tr key={bot.id} style={{ borderBottom: "1px solid #ccc" }}>
+                <td>{bot.bot_name}</td>
+                <td>{bot.client_name}</td>
+                <td>{bot.phone_number_id}</td>
+                <td>
+                  <input
+                    type="text"
+                    defaultValue={bot.access_token}
+                    onBlur={e => handleTokenChange(bot.id, e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                </td>
+                <td>
+                  <button
+                    onClick={e =>
+                      handleTokenChange(
+                        bot.id,
+                        e.target.previousSibling.value
                       )
-                    )
-                  }
-                  className="w-full border border-gray-300 rounded-md p-2 focus:ring focus:ring-blue-200"
-                />
-              </div>
-
-              <button
-                onClick={() => updateToken(bot.id, bot.access_token)}
-                disabled={saving === bot.id}
-                className={`px-4 py-2 rounded-md text-white ${
-                  saving === bot.id
-                    ? "bg-gray-400"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-              >
-                {saving === bot.id ? "Saving..." : "Save Token"}
-              </button>
-            </div>
-          ))}
-        </div>
+                    }
+                  >
+                    Save
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
