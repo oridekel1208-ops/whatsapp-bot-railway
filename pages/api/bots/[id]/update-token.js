@@ -1,27 +1,24 @@
-// pages/api/bots/[id]/update-token.js
-const { updateBotAccessToken, getBotById } = require("../../../lib/db.js");
+const { updateBotAccessToken, getBotById } = require("../../../lib/db");
 
-export default async function handler(req, res) {
-  const botId = req.query.id;
-
-  if (!botId) return res.status(400).json({ error: "Bot ID is required" });
-
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  try {
-    const { accessToken } = req.body;
-    if (!accessToken) return res.status(400).json({ error: "Missing accessToken" });
+  const { id } = req.query;
+  const { newToken } = req.body;
 
-    const bot = await getBotById(botId);
+  if (!newToken) return res.status(400).json({ error: "newToken is required" });
+
+  try {
+    const bot = await getBotById(id);
     if (!bot) return res.status(404).json({ error: "Bot not found" });
 
-    const updatedBot = await updateBotAccessToken(botId, accessToken);
-    return res.status(200).json(updatedBot);
+    const updated = await updateBotAccessToken(id, newToken);
+    return res.status(200).json(updated);
   } catch (err) {
     console.error("❌ Failed to update bot token:", err);
     return res.status(500).json({ error: err.message });
   }
-}
+};
