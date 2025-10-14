@@ -1,96 +1,65 @@
-// pages/api/webhook.js
-import { getClientByPhoneNumberId, getBotByClientId, insertMessage, updateBotState } from "../../lib/db";
+// ./pages/api/webhook.js
+
+// ✅ Disable Next.js automatic body parsing (we need raw body for WhatsApp)
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 export default async function handler(req, res) {
   try {
-    // ✅ Webhook verification (GET)
+    // ✅ Handle Webhook Verification (GET request from Meta)
     if (req.method === "GET") {
+      const VERIFY_TOKEN = "YOUR_VERIFY_TOKEN"; // <-- change this
+
       const mode = req.query["hub.mode"];
       const token = req.query["hub.verify_token"];
       const challenge = req.query["hub.challenge"];
 
-      if (mode && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-        console.log("✅ Webhook verified");
+      if (mode === "subscribe" && token === VERIFY_TOKEN) {
         return res.status(200).send(challenge);
       } else {
-        return res.status(403).send("Forbidden");
+        return res.status(403).send("Verification failed");
       }
     }
 
-    // Only accept POST for incoming messages
-    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+    // ✅ Handle Incoming Webhook Messages (POST)
+    if (req.method === "POST") {
+      // Collect raw body data
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      const rawBody = Buffer.concat(chunks).toString("utf8");
 
-    const body = req.body;
-    console.log("📩 Incoming Webhook:", JSON.stringify(body, null, 2));
+      // Parse JSON
+      const data = JSON.parse(rawBody);
+      console.log("📩 Incoming WhatsApp Webhook:", JSON.stringify(data, null, 2));
 
-    const entry = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    const phoneNumberId = value?.metadata?.phone_number_id;
+      // ✅ Detect if it's a status update or message
+      const entry = data.entry?.[0];
+      const change = entry?.changes?.[0];
+      const message = change?.value?.messages?.[0];
 
-    if (!phoneNumberId) {
-      console.warn("⚠️ No phone number ID found in webhook");
-      return res.status(200).send("No phone number ID");
-    }
-
-    // Get client based on phone number
-    const client = await getClientByPhoneNumberId(phoneNumberId);
-    if (!client) {
-      console.warn(`⚠️ No client found for phone ${phoneNumberId}`);
-      return res.status(200).send("No client");
-    }
-
-    // Get the bot associated with this client
-    const bot = await getBotByClientId(client.id);
-    if (!bot) {
-      console.warn(`⚠️ No bot found for client ${client.id}`);
-      return res.status(200).send("No bot configured for this client");
-    }
-
-    // Handle status updates
-    if (value.statuses) {
-      console.log("ℹ️ Status update received (not a message), skipping");
-      return res.status(200).send("Status update ignored");
-    }
-
-    // Handle messages
-    const messages = value.messages;
-    if (!messages || messages.length === 0) {
-      console.warn("⚠️ No message content (probably a status update)");
-      return res.status(200).send("No message content");
-    }
-
-    for (const msg of messages) {
-      const fromNumber = msg.from;
-      const toNumber = msg.to;
-      const bodyText = msg.text?.body || "";
-      const whatsappId = msg.id;
-
-      console.log(`💬 Message from ${fromNumber}:`, bodyText);
-
-      // Insert message into DB
-      await insertMessage({
-        client_id: client.id,
-        whatsapp_id: whatsappId,
-        from_number: fromNumber,
-        to_number: toNumber,
-        direction: "inbound",
-        body: bodyText,
-        provider_payload: msg,
-      });
-
-      // Update bot state
-      if (bodyText.trim()) {
-        await updateBotState(bot.id, fromNumber, { lastMessage: bodyText, lastSeen: Date.now() });
+      if (!message) {
+        console.log("⚠️ No user message detected (probably status update)");
+        return res.status(200).send("OK");
       }
 
-      // Placeholder: auto-reply logic
-      console.log(`ℹ️ Auto-reply placeholder for ${fromNumber}`);
+      const from = message.from;
+      const text = message.text?.body || "";
+
+      console.log(`👤 Message from ${from}: "${text}"`);
+
+      // TODO: Call your bot logic here
+
+      return res.status(200).send("OK");
     }
 
-    return res.status(200).send("Webhook processed");
+    return res.status(405).send("Method Not Allowed");
   } catch (err) {
     console.error("❌ Webhook error:", err);
-    return res.status(500).send("Internal server error");
+    return res.status(500).send("Server Error");
   }
 }
