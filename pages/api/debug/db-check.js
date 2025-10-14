@@ -1,5 +1,4 @@
-// pages/api/debug/db-check.js
-import { pool } from "../../../lib/db";
+import { pool } from "../../../lib/db.js";
 
 export default async function handler(req, res) {
   try {
