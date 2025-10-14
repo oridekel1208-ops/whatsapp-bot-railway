@@ -1,4 +1,3 @@
-// pages/api/webhook.js
 const crypto = require("crypto");
 const {
   insertMessage,
@@ -6,7 +5,7 @@ const {
   markClientVerified,
   getBotByClientId,
   updateBotState,
-} = require("../../lib/db.js");
+} = require("../lib/db"); // <-- use require, not import
 
 export const config = { runtime: "nodejs", api: { bodyParser: false } };
 
@@ -23,7 +22,7 @@ async function getRawBody(req) {
   });
 }
 
-// Simple bot reply logic
+// ------------------- Bot reply logic -------------------
 async function processMessage(bot, userNumber, text) {
   bot.userStates = bot.userStates || {};
   const state = bot.userStates[userNumber] || { currentStep: 0 };
@@ -33,16 +32,11 @@ async function processMessage(bot, userNumber, text) {
   let reply = bot.config?.welcome_message || "Hello!";
 
   if (currentFlow) {
-    if (currentFlow.answers && currentFlow.answers.length > 0) {
+    if (currentFlow.answers?.length) {
       const matched = currentFlow.answers.find(
-        (a) => a.text && a.text.toLowerCase() === text?.toLowerCase()
+        (a) => a.text?.toLowerCase() === text?.toLowerCase()
       );
-      if (matched) reply = matched.reply || "Got it!";
-      else {
-        const open = currentFlow.answers.find((a) => !a.reply);
-        if (open) reply = open.text || "Thanks for your reply!";
-        else reply = "Sorry, I didn't understand that.";
-      }
+      reply = matched?.reply || currentFlow.answers.find((a) => !a.reply)?.text || "Sorry, I didn't understand.";
     } else {
       reply = currentFlow.question || "Next question?";
     }
@@ -55,15 +49,14 @@ async function processMessage(bot, userNumber, text) {
   return reply;
 }
 
-export default async function handler(req, res) {
-  // ------------------ GET Verification ------------------
+// ------------------- Webhook handler -------------------
+module.exports = async function handler(req, res) {
+  // Verification
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
-
     if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
-      console.log("✅ Webhook verified");
       return res.status(200).send(challenge);
     }
     return res.status(403).send("Verification failed");
@@ -90,7 +83,6 @@ export default async function handler(req, res) {
     }
 
     const body = JSON.parse(rawString);
-
     if (body.object === "whatsapp_business_account" && body.entry) {
       for (const entry of body.entry) {
         for (const change of entry.changes || []) {
@@ -103,7 +95,6 @@ export default async function handler(req, res) {
 
           if (!client.is_verified) {
             await markClientVerified(client.id, true);
-            console.log(`✅ Client verified: ${client.name}`);
           }
 
           const bot = await getBotByClientId(client.id);
@@ -112,8 +103,6 @@ export default async function handler(req, res) {
           for (const m of value.messages || []) {
             const from = m.from;
             const text = m.text?.body || "";
-
-            console.log(`📩 Incoming Message from ${from}: "${text}"`);
 
             // Save inbound
             await insertMessage({
@@ -129,14 +118,14 @@ export default async function handler(req, res) {
             // Generate reply
             const reply = await processMessage(bot, from, text);
 
-            // Send via WhatsApp using BOT access token
+            // Send via WhatsApp
             try {
               const sendResp = await fetch(
                 `https://graph.facebook.com/${process.env.META_API_VERSION || "v17.0"}/${phoneId}/messages`,
                 {
                   method: "POST",
                   headers: {
-                    Authorization: `Bearer ${bot.access_token}`,
+                    Authorization: `Bearer ${bot.access_token}`, // <-- use bot token
                     "Content-Type": "application/json",
                   },
                   body: JSON.stringify({
@@ -149,9 +138,6 @@ export default async function handler(req, res) {
               );
 
               const sendData = await sendResp.json();
-              if (!sendResp.ok) console.error("❌ WhatsApp API error:", sendData);
-
-              console.log(`📤 Outgoing Message to ${from}: "${reply}"`);
 
               // Save outbound
               await insertMessage({
@@ -176,4 +162,4 @@ export default async function handler(req, res) {
     console.error("🔥 Webhook error:", err);
     return res.status(500).json({ error: err.message || String(err) });
   }
-}
+};
