@@ -1,4 +1,4 @@
-const { updateBotAccessToken, getBotById } = require("../../../lib/db");
+const { updateBotAccessToken, getBotById } = require("../../../../lib/db");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
