@@ -1,20 +1,29 @@
-import crypto from "crypto";
-import {
+// pages/api/webhook.js
+const crypto = require("crypto");
+const {
   insertMessage,
   getClientByPhoneNumberId,
   markClientVerified,
   getBotByClientId,
   updateBotState,
-} from "../../lib/db.js";
+} = require("../../lib/db.js");
 
 export const config = { runtime: "nodejs", api: { bodyParser: false } };
 
-async function getRawBody(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  return Buffer.concat(chunks);
+function bufferToString(buffer) {
+  return buffer.toString("utf8");
 }
 
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+// Simple bot reply logic
 async function processMessage(bot, userNumber, text) {
   bot.userStates = bot.userStates || {};
   const state = bot.userStates[userNumber] || { currentStep: 0 };
@@ -24,25 +33,35 @@ async function processMessage(bot, userNumber, text) {
   let reply = bot.config?.welcome_message || "Hello!";
 
   if (currentFlow) {
-    if (currentFlow.answers?.length > 0) {
+    if (currentFlow.answers && currentFlow.answers.length > 0) {
       const matched = currentFlow.answers.find(
-        (a) => a.text?.toLowerCase() === text?.toLowerCase()
+        (a) => a.text && a.text.toLowerCase() === text?.toLowerCase()
       );
-      reply = matched?.reply || currentFlow.answers.find((a) => !a.reply)?.text || "Sorry, I didn't understand that.";
+      if (matched) reply = matched.reply || "Got it!";
+      else {
+        const open = currentFlow.answers.find((a) => !a.reply);
+        if (open) reply = open.text || "Thanks for your reply!";
+        else reply = "Sorry, I didn't understand that.";
+      }
     } else {
-      reply = currentFlow.question || reply;
+      reply = currentFlow.question || "Next question?";
     }
     state.currentStep = Math.min(state.currentStep + 1, flows.length - 1);
   }
 
   bot.userStates[userNumber] = state;
   await updateBotState(bot.id, userNumber, state);
+
   return reply;
 }
 
 export default async function handler(req, res) {
+  // ------------------ GET Verification ------------------
   if (req.method === "GET") {
-    const { "hub.mode": mode, "hub.verify_token": token, "hub.challenge": challenge } = req.query;
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
     if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
       console.log("✅ Webhook verified");
       return res.status(200).send(challenge);
@@ -57,10 +76,23 @@ export default async function handler(req, res) {
 
   try {
     const raw = await getRawBody(req);
-    const body = JSON.parse(raw.toString("utf8"));
+    const rawString = bufferToString(raw);
 
-    if (body.object === "whatsapp_business_account") {
-      for (const entry of body.entry || []) {
+    // Optional signature verification
+    const signatureHeader = req.headers["x-hub-signature-256"];
+    if (process.env.META_APP_SECRET && signatureHeader) {
+      const hmac = crypto.createHmac("sha256", process.env.META_APP_SECRET);
+      hmac.update(raw);
+      const expected = "sha256=" + hmac.digest("hex");
+      if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader))) {
+        return res.status(401).send("Invalid signature");
+      }
+    }
+
+    const body = JSON.parse(rawString);
+
+    if (body.object === "whatsapp_business_account" && body.entry) {
+      for (const entry of body.entry) {
         for (const change of entry.changes || []) {
           const value = change.value || {};
           const phoneId = value.metadata?.phone_number_id;
@@ -81,6 +113,8 @@ export default async function handler(req, res) {
             const from = m.from;
             const text = m.text?.body || "";
 
+            console.log(`📩 Incoming Message from ${from}: "${text}"`);
+
             // Save inbound
             await insertMessage({
               client_id: client.id,
@@ -95,7 +129,7 @@ export default async function handler(req, res) {
             // Generate reply
             const reply = await processMessage(bot, from, text);
 
-            // Send message using bot token
+            // Send via WhatsApp using BOT access token
             try {
               const sendResp = await fetch(
                 `https://graph.facebook.com/${process.env.META_API_VERSION || "v17.0"}/${phoneId}/messages`,
@@ -117,6 +151,8 @@ export default async function handler(req, res) {
               const sendData = await sendResp.json();
               if (!sendResp.ok) console.error("❌ WhatsApp API error:", sendData);
 
+              console.log(`📤 Outgoing Message to ${from}: "${reply}"`);
+
               // Save outbound
               await insertMessage({
                 client_id: client.id,
@@ -135,9 +171,9 @@ export default async function handler(req, res) {
       }
     }
 
-    res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("🔥 Webhook error:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    return res.status(500).json({ error: err.message || String(err) });
   }
 }
