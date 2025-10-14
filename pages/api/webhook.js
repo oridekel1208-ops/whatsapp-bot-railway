@@ -1,13 +1,5 @@
 // pages/api/webhook.js
-import { json } from "body-parser";
 import { getClientByPhoneNumberId, getBotByClientId, insertMessage, updateBotState } from "../../lib/db";
-
-// Next.js API route
-export const config = {
-  api: {
-    bodyParser: true, // Parse JSON automatically
-  },
-};
 
 export default async function handler(req, res) {
   try {
@@ -21,12 +13,12 @@ export default async function handler(req, res) {
         console.log("✅ Webhook verified");
         return res.status(200).send(challenge);
       } else {
-        return res.sendStatus(403);
+        return res.status(403).send("Forbidden");
       }
     }
 
     // Only accept POST for incoming messages
-    if (req.method !== "POST") return res.sendStatus(405);
+    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
     const body = req.body;
     console.log("📩 Incoming Webhook:", JSON.stringify(body, null, 2));
@@ -87,13 +79,12 @@ export default async function handler(req, res) {
         provider_payload: msg,
       });
 
-      // Example: Update user state in bot config
+      // Update bot state
       if (bodyText.trim()) {
         await updateBotState(bot.id, fromNumber, { lastMessage: bodyText, lastSeen: Date.now() });
       }
 
-      // TODO: Here you can add auto-reply logic
-      // Example placeholder:
+      // Placeholder: auto-reply logic
       console.log(`ℹ️ Auto-reply placeholder for ${fromNumber}`);
     }
 
