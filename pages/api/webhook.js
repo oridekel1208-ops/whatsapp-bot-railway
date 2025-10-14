@@ -1,11 +1,11 @@
-const crypto = require("crypto");
-const {
+import crypto from "crypto";
+import {
   insertMessage,
   getClientByPhoneNumberId,
   markClientVerified,
   getBotByClientId,
   updateBotState,
-} = require("../../lib/db"); // <-- use require, not import
+} from "../../lib/db.js";
 
 export const config = { runtime: "nodejs", api: { bodyParser: false } };
 
@@ -22,7 +22,7 @@ async function getRawBody(req) {
   });
 }
 
-// ------------------- Bot reply logic -------------------
+// Simple bot reply logic
 async function processMessage(bot, userNumber, text) {
   bot.userStates = bot.userStates || {};
   const state = bot.userStates[userNumber] || { currentStep: 0 };
@@ -36,7 +36,10 @@ async function processMessage(bot, userNumber, text) {
       const matched = currentFlow.answers.find(
         (a) => a.text?.toLowerCase() === text?.toLowerCase()
       );
-      reply = matched?.reply || currentFlow.answers.find((a) => !a.reply)?.text || "Sorry, I didn't understand.";
+      reply =
+        matched?.reply ||
+        currentFlow.answers.find((a) => !a.reply)?.text ||
+        "Sorry, I didn't understand.";
     } else {
       reply = currentFlow.question || "Next question?";
     }
@@ -49,9 +52,7 @@ async function processMessage(bot, userNumber, text) {
   return reply;
 }
 
-// ------------------- Webhook handler -------------------
-module.exports = async function handler(req, res) {
-  // Verification
+export default async function handler(req, res) {
   if (req.method === "GET") {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
@@ -71,7 +72,6 @@ module.exports = async function handler(req, res) {
     const raw = await getRawBody(req);
     const rawString = bufferToString(raw);
 
-    // Optional signature verification
     const signatureHeader = req.headers["x-hub-signature-256"];
     if (process.env.META_APP_SECRET && signatureHeader) {
       const hmac = crypto.createHmac("sha256", process.env.META_APP_SECRET);
@@ -104,7 +104,6 @@ module.exports = async function handler(req, res) {
             const from = m.from;
             const text = m.text?.body || "";
 
-            // Save inbound
             await insertMessage({
               client_id: client.id,
               whatsapp_id: m.id,
@@ -115,17 +114,15 @@ module.exports = async function handler(req, res) {
               provider_payload: m,
             });
 
-            // Generate reply
             const reply = await processMessage(bot, from, text);
 
-            // Send via WhatsApp
             try {
               const sendResp = await fetch(
                 `https://graph.facebook.com/${process.env.META_API_VERSION || "v17.0"}/${phoneId}/messages`,
                 {
                   method: "POST",
                   headers: {
-                    Authorization: `Bearer ${bot.access_token}`, // <-- use bot token
+                    Authorization: `Bearer ${bot.access_token}`,
                     "Content-Type": "application/json",
                   },
                   body: JSON.stringify({
@@ -136,10 +133,8 @@ module.exports = async function handler(req, res) {
                   }),
                 }
               );
-
               const sendData = await sendResp.json();
 
-              // Save outbound
               await insertMessage({
                 client_id: client.id,
                 whatsapp_id: sendData?.messages?.[0]?.id || null,
@@ -162,4 +157,4 @@ module.exports = async function handler(req, res) {
     console.error("🔥 Webhook error:", err);
     return res.status(500).json({ error: err.message || String(err) });
   }
-};
+}
