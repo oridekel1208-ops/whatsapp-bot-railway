@@ -1,202 +1,143 @@
-// lib/db.js
-// PostgreSQL helper for bots/clients/messages
-
-const { Pool } = require('pg');
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error('DATABASE_URL is required');
-
-const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false }, // Render requirement
-});
-
-// ----------------------- TABLES -----------------------
-async function ensureTables() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS clients (
-      id BIGSERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      phone_number_id TEXT NOT NULL UNIQUE,
-      whatsapp_business_account_id TEXT,
-      access_token TEXT NOT NULL,
-      verify_token TEXT NOT NULL,
-      is_verified BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS bots (
-      id BIGSERIAL PRIMARY KEY,
-      client_id BIGINT REFERENCES clients(id) ON DELETE CASCADE,
-      name TEXT,
-      access_token TEXT,
-      config JSONB DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id BIGSERIAL PRIMARY KEY,
-      client_id BIGINT REFERENCES clients(id) ON DELETE CASCADE,
-      whatsapp_id TEXT,
-      from_number TEXT,
-      to_number TEXT,
-      direction TEXT,
-      body TEXT,
-      provider_payload JSONB,
-      created_at TIMESTAMPTZ DEFAULT now()
-    );
-  `);
-}
-
-// ----------------------- CLIENTS -----------------------
-async function createClient({ name, phone_number_id, access_token, verify_token }) {
-  await ensureTables();
-  const res = await pool.query(
-    `INSERT INTO clients (name, phone_number_id, access_token, verify_token)
-     VALUES ($1,$2,$3,$4) RETURNING *;`,
-    [name, phone_number_id, access_token, verify_token]
-  );
-  return res.rows[0];
-}
-
-async function getClientByPhoneNumberId(phone_number_id) {
-  await ensureTables();
-  const res = await pool.query(
-    `SELECT * FROM clients WHERE phone_number_id = $1 LIMIT 1;`,
-    [phone_number_id]
-  );
-  return res.rows[0] || null;
-}
-
-async function getClientById(id) {
-  await ensureTables();
-  const res = await pool.query(
-    `SELECT * FROM clients WHERE id = $1 LIMIT 1;`,
-    [id]
-  );
-  return res.rows[0] || null;
-}
-
-async function markClientVerified(id, verified = true) {
-  await ensureTables();
-  const res = await pool.query(
-    `UPDATE clients SET is_verified=$1, updated_at=now() WHERE id=$2 RETURNING *;`,
-    [verified, id]
-  );
-  return res.rows[0];
-}
-
-async function updateClientAccessToken(clientId, newToken) {
-  await ensureTables();
-  const res = await pool.query(
-    `UPDATE clients SET access_token=$1, updated_at=now() WHERE id=$2 RETURNING *;`,
-    [newToken, clientId]
-  );
-  return res.rows[0];
-}
-
-// ----------------------- BOTS -----------------------
-async function addBot({ client_id, name, access_token, config = {} }) {
-  await ensureTables();
-  const res = await pool.query(
-    `INSERT INTO bots (client_id, name, access_token, config)
-     VALUES ($1,$2,$3,$4) RETURNING *;`,
-    [client_id, name, access_token, config]
-  );
-  return res.rows[0];
-}
-
-async function getBots() {
-  await ensureTables();
-  const res = await pool.query(`
-    SELECT bots.*, clients.phone_number_id, clients.name AS client_name
-    FROM bots LEFT JOIN clients ON bots.client_id = clients.id
-    ORDER BY bots.id DESC;
-  `);
-  return res.rows;
-}
-
-async function getBotById(botId) {
-  await ensureTables();
-  const res = await pool.query(
-    `SELECT * FROM bots WHERE id=$1 LIMIT 1;`,
-    [botId]
-  );
-  return res.rows[0] || null;
-}
-
-async function getBotByClientId(clientId) {
-  await ensureTables();
-  const res = await pool.query(
-    `SELECT * FROM bots WHERE client_id=$1 ORDER BY id ASC LIMIT 1;`,
-    [clientId]
-  );
-  return res.rows[0] || null;
-}
-
-async function updateBotAccessToken(botId, newToken) {
-  await ensureTables();
-  const res = await pool.query(
-    `UPDATE bots SET access_token=$1, updated_at=now() WHERE id=$2 RETURNING *;`,
-    [newToken, botId]
-  );
-  return res.rows[0];
-}
-
-async function updateBotState(botId, userNumber, newState) {
-  await ensureTables();
-  const res = await pool.query(
-    `UPDATE bots
-     SET config = jsonb_set(config, '{userStates,"${userNumber}"}', $1::jsonb, true),
-         updated_at = now()
-     WHERE id=$2
-     RETURNING *;`,
-    [JSON.stringify(newState), botId]
-  );
-  return res.rows[0];
-}
-
-// ----------------------- MESSAGES -----------------------
-async function insertMessage({ client_id, whatsapp_id, from_number, to_number, direction, body, provider_payload }) {
-  await ensureTables();
-  const res = await pool.query(
-    `INSERT INTO messages (client_id, whatsapp_id, from_number, to_number, direction, body, provider_payload)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *;`,
-    [client_id, whatsapp_id, from_number, to_number, direction, body, provider_payload]
-  );
-  return res.rows[0];
-}
-
-async function getRecentMessages(limit = 100) {
-  await ensureTables();
-  const res = await pool.query(
-    `SELECT * FROM messages ORDER BY created_at DESC LIMIT $1;`,
-    [limit]
-  );
-  return res.rows;
-}
-
-// ----------------------- EXPORT -----------------------
-module.exports = {
-  pool,
-  ensureTables,
-  createClient,
-  getClientByPhoneNumberId,
-  getClientById,
-  markClientVerified,
-  updateClientAccessToken,
-  addBot,
-  getBots,
-  getBotById,
-  getBotByClientId,
-  updateBotAccessToken,
-  updateBotState,
+import crypto from "crypto";
+import {
   insertMessage,
-  getRecentMessages
-};
+  getClientByPhoneNumberId,
+  markClientVerified,
+  getBotByClientId,
+  updateBotState,
+} from "../../lib/db.js";
+
+export const config = { runtime: "nodejs", api: { bodyParser: false } };
+
+async function getRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+async function processMessage(bot, userNumber, text) {
+  bot.userStates = bot.userStates || {};
+  const state = bot.userStates[userNumber] || { currentStep: 0 };
+  const flows = bot.config?.flows || [];
+  const currentFlow = flows[state.currentStep];
+
+  let reply = bot.config?.welcome_message || "Hello!";
+
+  if (currentFlow) {
+    if (currentFlow.answers?.length > 0) {
+      const matched = currentFlow.answers.find(
+        (a) => a.text?.toLowerCase() === text?.toLowerCase()
+      );
+      reply = matched?.reply || currentFlow.answers.find((a) => !a.reply)?.text || "Sorry, I didn't understand that.";
+    } else {
+      reply = currentFlow.question || reply;
+    }
+    state.currentStep = Math.min(state.currentStep + 1, flows.length - 1);
+  }
+
+  bot.userStates[userNumber] = state;
+  await updateBotState(bot.id, userNumber, state);
+  return reply;
+}
+
+export default async function handler(req, res) {
+  if (req.method === "GET") {
+    const { "hub.mode": mode, "hub.verify_token": token, "hub.challenge": challenge } = req.query;
+    if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+      console.log("✅ Webhook verified");
+      return res.status(200).send(challenge);
+    }
+    return res.status(403).send("Verification failed");
+  }
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).end("Method Not Allowed");
+  }
+
+  try {
+    const raw = await getRawBody(req);
+    const body = JSON.parse(raw.toString("utf8"));
+
+    if (body.object === "whatsapp_business_account") {
+      for (const entry of body.entry || []) {
+        for (const change of entry.changes || []) {
+          const value = change.value || {};
+          const phoneId = value.metadata?.phone_number_id;
+          if (!phoneId) continue;
+
+          const client = await getClientByPhoneNumberId(phoneId);
+          if (!client) continue;
+
+          if (!client.is_verified) {
+            await markClientVerified(client.id, true);
+            console.log(`✅ Client verified: ${client.name}`);
+          }
+
+          const bot = await getBotByClientId(client.id);
+          if (!bot) continue;
+
+          for (const m of value.messages || []) {
+            const from = m.from;
+            const text = m.text?.body || "";
+
+            // Save inbound
+            await insertMessage({
+              client_id: client.id,
+              whatsapp_id: m.id,
+              from_number: from,
+              to_number: phoneId,
+              direction: "inbound",
+              body: text,
+              provider_payload: m,
+            });
+
+            // Generate reply
+            const reply = await processMessage(bot, from, text);
+
+            // Send message using bot token
+            try {
+              const sendResp = await fetch(
+                `https://graph.facebook.com/${process.env.META_API_VERSION || "v17.0"}/${phoneId}/messages`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${bot.access_token}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    to: from,
+                    type: "text",
+                    text: { body: reply },
+                  }),
+                }
+              );
+
+              const sendData = await sendResp.json();
+              if (!sendResp.ok) console.error("❌ WhatsApp API error:", sendData);
+
+              // Save outbound
+              await insertMessage({
+                client_id: client.id,
+                whatsapp_id: sendData?.messages?.[0]?.id || null,
+                from_number: phoneId,
+                to_number: from,
+                direction: "outbound",
+                body: reply,
+                provider_payload: sendData,
+              });
+            } catch (err) {
+              console.error("❌ Failed to send reply:", err);
+            }
+          }
+        }
+      }
+    }
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("🔥 Webhook error:", err);
+    res.status(500).json({ error: err.message || String(err) });
+  }
+}
