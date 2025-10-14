@@ -5,7 +5,7 @@ const {
   markClientVerified,
   getBotByClientId,
   updateBotState,
-} = require("../lib/db"); // <-- use require, not import
+} = require("../../lib/db"); // <-- use require, not import
 
 export const config = { runtime: "nodejs", api: { bodyParser: false } };
 
