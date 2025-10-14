@@ -4,7 +4,7 @@ import {
   getClientByPhoneNumberId,
   getBotByClientId,
   insertMessage,
-} from "../../../lib/db";
+} from "../../lib/db";
 
 // Helper to safely get nested fields
 function getNested(obj, path, defaultValue = undefined) {
