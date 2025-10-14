@@ -1,7 +1,7 @@
 // pages/api/bots/[id]/update-token.js
-import { updateBotAccessToken, getBotById } from "../../../lib/db.js";
+const { updateBotAccessToken, getBotById } = require("../../../lib/db.js");
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const { id } = req.query;
 
   if (req.method !== "PATCH") {
@@ -22,4 +22,4 @@ export default async function handler(req, res) {
     console.error("❌ Failed to update bot token:", err);
     return res.status(500).json({ error: err.message });
   }
-}
+};
