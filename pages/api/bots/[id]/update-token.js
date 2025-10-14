@@ -1,16 +1,25 @@
+// pages/api/bots/[id]/update-token.js
 import { updateBotAccessToken, getBotById } from "../../../lib/db.js";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end();
-
   const { id } = req.query;
-  const { accessToken } = req.body;
 
-  if (!accessToken) return res.status(400).json({ error: "Missing accessToken" });
+  if (req.method !== "PATCH") {
+    res.setHeader("Allow", ["PATCH"]);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
 
-  const bot = await getBotById(id);
-  if (!bot) return res.status(404).json({ error: "Bot not found" });
+  try {
+    const { accessToken } = req.body;
+    if (!accessToken) return res.status(400).json({ error: "Missing accessToken" });
 
-  const updated = await updateBotAccessToken(id, accessToken);
-  return res.status(200).json(updated);
+    const bot = await getBotById(id);
+    if (!bot) return res.status(404).json({ error: "Bot not found" });
+
+    const updatedBot = await updateBotAccessToken(id, accessToken);
+    return res.status(200).json(updatedBot);
+  } catch (err) {
+    console.error("❌ Failed to update bot token:", err);
+    return res.status(500).json({ error: err.message });
+  }
 }
