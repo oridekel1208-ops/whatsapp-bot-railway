@@ -1,6 +1,6 @@
 // pages/api/webhook.js
 import { json } from "body-parser";
-import { getClientByPhoneNumberId, getBotByClientId, insertMessage, updateBotState } from "../../../lib/db";
+import { getClientByPhoneNumberId, getBotByClientId, insertMessage, updateBotState } from "../../lib/db";
 
 // Next.js API route
 export const config = {
