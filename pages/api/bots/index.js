@@ -1,7 +1,16 @@
 // pages/api/bots/index.js
-import { getBots, addBot, getClientByPhoneNumberId, createClient } from "../../../lib/db.js";
+const {
+  ensureTables,
+  getBots,
+  getClientByPhoneNumberId,
+  createClient,
+  addBot,
+} = require("../../../lib/db.js");
 
 export default async function handler(req, res) {
+  await ensureTables();
+
+  // GET all bots
   if (req.method === "GET") {
     try {
       const bots = await getBots();
@@ -12,10 +21,13 @@ export default async function handler(req, res) {
     }
   }
 
+  // POST create a new bot
   if (req.method === "POST") {
     try {
       const { phoneNumberId, accessToken, name = "New Bot" } = req.body;
-      if (!phoneNumberId || !accessToken) return res.status(400).json({ error: "Missing phoneNumberId or accessToken" });
+      if (!phoneNumberId || !accessToken) {
+        return res.status(400).json({ error: "Missing phoneNumberId or accessToken" });
+      }
 
       let client = await getClientByPhoneNumberId(phoneNumberId);
       if (!client) {
@@ -41,6 +53,7 @@ export default async function handler(req, res) {
     }
   }
 
+  // Unsupported method
   res.setHeader("Allow", ["GET", "POST"]);
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
